@@ -1,0 +1,1063 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Temp Radar</title>
+<style>
+:root{
+  color-scheme: light;
+  --bg:#f9f9f7; --surface:#fcfcfb; --surface-2:#f1f0ec; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s1:#2a78d6; --s2:#eb6834; --good:#006300; --good-mark:#0ca30c; --bad:#d03b3b; --warn:#9a6a00;
+  --hover:rgba(42,120,214,.06); --sel:rgba(42,120,214,.13); --band:rgba(235,104,52,.16);
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --bg:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+    --s1:#3987e5; --s2:#d95926; --good:#0ca30c; --good-mark:#0ca30c; --bad:#e66767; --warn:#fab219;
+    --hover:rgba(57,135,229,.08); --sel:rgba(57,135,229,.18); --band:rgba(217,89,38,.22);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --bg:#0d0d0d; --surface:#1a1a19; --surface-2:#232321; --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+  --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
+  --s1:#3987e5; --s2:#d95926; --good:#0ca30c; --good-mark:#0ca30c; --bad:#e66767; --warn:#fab219;
+  --hover:rgba(57,135,229,.08); --sel:rgba(57,135,229,.18); --band:rgba(217,89,38,.22);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font:13px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--s1);text-decoration:none} a:hover{text-decoration:underline}
+button,input,select,textarea{font:inherit;color:inherit}
+button{background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:5px 10px;cursor:pointer}
+button:hover{border-color:var(--axis)} button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--s1);border-color:var(--s1);color:#fff}
+input[type=text],input[type=password],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px}
+textarea{width:100%;resize:vertical;min-height:54px}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.mono{font-family:var(--mono);font-size:11.5px}
+.muted{color:var(--muted)} .ink2{color:var(--ink-2)}
+.pos{color:var(--good)} .neg{color:var(--bad)} .warn{color:var(--warn)}
+
+/* header */
+header{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--border)}
+.bar{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}
+.brand{display:flex;align-items:baseline;gap:10px;margin-right:auto}
+.brand b{font-size:15px;letter-spacing:.06em}
+.brand span{color:var(--muted);font-size:12px}
+.clock{font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:12px}
+.pills{display:flex;gap:6px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:2px 9px;font-size:11.5px;color:var(--ink-2);background:var(--surface)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--good-mark)} .dot.err{background:var(--bad)} .dot.busy{background:var(--warn)}
+.controls{display:flex;align-items:center;gap:8px;padding:8px 16px 10px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;background:var(--surface-2);border-radius:8px;padding:2px}
+.tab{border:0;background:transparent;padding:5px 12px;border-radius:6px;color:var(--ink-2)}
+.tab.on{background:var(--surface);color:var(--ink);box-shadow:0 0 0 1px var(--border)}
+.tab .cnt{color:var(--muted);margin-left:4px;font-variant-numeric:tabular-nums}
+.tab .sigc{color:var(--good);margin-left:4px}
+.spacer{flex:1}
+label.chk{display:inline-flex;gap:6px;align-items:center;color:var(--ink-2);cursor:pointer}
+
+/* layout */
+main{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:14px;padding:14px 16px 40px;align-items:start}
+@media (max-width:1100px){main{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px}
+.card h3{margin:0;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.card-h{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--border)}
+.scroll-x{overflow-x:auto}
+
+/* radar table */
+table{border-collapse:collapse;width:100%}
+th{font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;background:var(--surface)}
+th.num{text-align:right}
+td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr{cursor:pointer} tbody tr:hover{background:var(--hover)} tbody tr.sel{background:var(--sel)}
+.c-name{font-weight:600;white-space:nowrap}
+.c-sub{color:var(--muted);font-size:11px;white-space:nowrap}
+.sub{color:var(--muted);font-size:11px}
+.bk{font-variant-numeric:tabular-nums;white-space:nowrap}
+.sig{display:inline-flex;align-items:center;gap:5px;border-radius:5px;padding:2px 7px;font-size:11.5px;font-weight:600;white-space:nowrap;border:1px solid}
+.sig.yes{color:var(--good);border-color:color-mix(in srgb,var(--good) 45%,transparent);background:color-mix(in srgb,var(--good) 10%,transparent)}
+.sig.no{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 45%,transparent);background:color-mix(in srgb,var(--bad) 10%,transparent)}
+.sig.flat{color:var(--muted);border-color:var(--border);font-weight:500}
+.tag{display:inline-block;border:1px solid var(--border);border-radius:4px;padding:0 5px;font-size:10.5px;color:var(--ink-2);white-space:nowrap}
+.tag.w{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+.ai-btn{padding:2px 8px;font-size:11.5px}
+.ai-pick{font-size:11px;color:var(--ink-2);white-space:nowrap}
+.empty{padding:30px;text-align:center;color:var(--muted)}
+
+/* detail */
+#detail{position:sticky;top:112px;max-height:calc(100vh - 124px);overflow:auto}
+@media (max-width:1100px){#detail{position:static;max-height:none}}
+.d-sec{padding:12px;border-bottom:1px solid var(--border)}
+.d-sec:last-child{border-bottom:0}
+.d-title{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.d-title b{font-size:16px}
+.links{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;font-size:12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
+.tile{background:var(--surface-2);border-radius:8px;padding:8px 10px}
+.tile .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.tile .v{font-size:19px;font-weight:600;margin-top:2px}
+.tile .s{font-size:11px;color:var(--ink-2)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin-bottom:6px}
+.legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+.legend i.band{height:9px;border:0;background:var(--band)}
+.chart-wrap{position:relative}
+.chart-wrap svg{width:100%;height:auto;display:block}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 8px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.25);white-space:nowrap;display:none;z-index:5}
+.ladder td,.ladder th{padding:5px 6px}
+.pbar{position:relative;height:14px;min-width:90px;background:var(--surface-2);border-radius:3px}
+.pbar .f{position:absolute;left:0;top:2px;bottom:2px;background:var(--s1);border-radius:0 3px 3px 0}
+.pbar .m{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink);border-radius:1px}
+.pbar .a{position:absolute;top:4px;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--s2);box-shadow:0 0 0 2px var(--surface)}
+tr.fav td:first-child{font-weight:700}
+.metar{white-space:pre-wrap;word-break:break-all;color:var(--ink-2);margin:0}
+.ai-out{font-size:12.5px}
+.ai-out h4{margin:10px 0 4px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.ai-out ul{margin:0;padding-left:18px}
+.ai-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* scan panel, modal, toast */
+#scan{grid-column:1/-1;display:none}
+#scan.on{display:block}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 16px;overflow:auto}
+.modal-bg.on{display:flex}
+.modal{width:min(560px,100%);background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.modal .body{padding:14px;display:grid;gap:12px}
+.field{display:grid;gap:4px}
+.field label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.field .hint{font-size:11.5px;color:var(--muted)}
+.field input[type=text],.field input[type=password],.field select{width:100%}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+#toast{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:60}
+.toast{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--s1);border-radius:8px;padding:8px 12px;max-width:380px;box-shadow:0 6px 20px rgba(0,0,0,.3);font-size:12.5px}
+.toast.err{border-left-color:var(--bad)}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-1px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (max-width:640px){
+  .bar,.controls{padding-left:12px;padding-right:12px}
+  main{padding:10px 12px 30px}
+  .grid2{grid-template-columns:1fr}
+  .hide-sm{display:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand"><b>TEMP RADAR</b><span>Polymarket daily-high · METAR · multi-model · Gemini</span></div>
+    <div class="clock" id="clock"></div>
+    <div class="pills" id="pills"></div>
+    <button id="btnRefresh" title="Reload everything">Refresh</button>
+    <button id="btnTheme" title="Toggle light/dark">◐</button>
+    <button id="btnSettings">Settings</button>
+  </div>
+  <div class="controls">
+    <div class="tabs" id="tabs"></div>
+    <input type="text" id="q" placeholder="Filter city / station" style="width:170px">
+    <label class="chk"><input type="checkbox" id="onlySig"> Signals only</label>
+    <select id="sort" title="Sort">
+      <option value="edge">Sort: best edge</option>
+      <option value="vol">Sort: volume</option>
+      <option value="city">Sort: city</option>
+      <option value="local">Sort: local time</option>
+    </select>
+    <div class="spacer"></div>
+    <label class="chk" title="Refresh prices every 60s, METAR every 3 min, models every 30 min"><input type="checkbox" id="auto" checked> Auto-refresh</label>
+    <button id="btnScan" class="primary">AI scan</button>
+  </div>
+</header>
+
+<main>
+  <section id="scan" class="card"></section>
+  <section class="card">
+    <div class="card-h"><h3 id="tblTitle">Radar</h3><div class="spacer"></div><span class="sub" id="tblNote"></span></div>
+    <div class="scroll-x"><table id="radar"><thead></thead><tbody></tbody></table></div>
+  </section>
+  <section class="card" id="detail"><div class="empty">Select a market on the left.</div></section>
+</main>
+
+<div class="modal-bg" id="settingsBg">
+  <div class="modal">
+    <div class="card-h"><h3>Settings</h3><div class="spacer"></div><button id="btnCloseSettings">Close</button></div>
+    <div class="body">
+      <div class="field">
+        <label for="sKey">Google AI Studio API key</label>
+        <input type="password" id="sKey" placeholder="AIza…" autocomplete="off">
+        <div class="hint">Sent only to generativelanguage.googleapis.com, directly from this browser.</div>
+        <label class="chk"><input type="checkbox" id="sRemember"> Remember on this device (browser storage)</label>
+      </div>
+      <div class="field">
+        <label for="sModel">Gemini model</label>
+        <div class="row"><select id="sModel" style="flex:1"><option value="">(load models first)</option></select><button id="btnModels">Load models</button></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="sLang">AI answer language</label>
+          <select id="sLang"><option>English</option><option>Bulgarian</option></select></div>
+        <div class="field"><label for="sAiAuto">Auto AI scan</label>
+          <select id="sAiAuto"><option value="0">Off</option><option value="15">Every 15 min</option><option value="30">Every 30 min</option><option value="60">Every 60 min</option></select></div>
+      </div>
+      <label class="chk"><input type="checkbox" id="sGround"> Let Gemini use Google Search (grounding)</label>
+      <div class="grid2">
+        <div class="field"><label for="sEdge">Signal threshold (¢ net edge)</label><input type="number" id="sEdge" min="1" max="50" step="0.5"></div>
+        <div class="field"><label>&nbsp;</label><label class="chk"><input type="checkbox" id="sFees"> Subtract est. taker fee</label></div>
+      </div>
+      <div class="field">
+        <label for="sProxy">Optional CORS proxy (Cloudflare Worker) for TAF</label>
+        <input type="text" id="sProxy" placeholder="https://temp-radar-proxy.yourname.workers.dev">
+        <div class="hint">aviationweather.gov blocks browser requests. With the included worker deployed, the radar also loads TAF and the freshest METAR for the selected station.</div>
+      </div>
+      <div class="row"><div class="spacer"></div><button class="primary" id="btnSaveSettings">Save</button></div>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+/* ============================ config ============================ */
+const CFG = {
+  GAMMA: 'https://gamma-api.polymarket.com',
+  CLOB: 'https://clob.polymarket.com',
+  IEM: 'https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py',
+  OM: 'https://api.open-meteo.com/v1/forecast',
+  GEM: 'https://generativelanguage.googleapis.com/v1beta',
+  AW: 'https://aviationweather.gov/api/data',
+  PRICE_MS: 60e3, OBS_MS: 180e3, MKT_MS: 15 * 60e3, FC_MS: 30 * 60e3,
+  NSIM: 4000
+};
+const MODELS = [
+  ['ecmwf_ifs025', 'ECMWF'], ['gfs_seamless', 'GFS'], ['icon_seamless', 'ICON'], ['gem_seamless', 'GEM'],
+  ['meteofrance_seamless', 'Météo-France'], ['ukmo_seamless', 'UKMO'], ['jma_seamless', 'JMA']
+];
+const HKO = { key: 'HKO', lat: 22.302, lon: 114.174 };
+const DEFAULTS = { key: '', remember: false, model: '', lang: 'English', grounding: false, edge: 6, fees: true, proxy: '', aiAuto: 0 };
+
+/* ============================ state ============================ */
+const S = {
+  events: [], stations: {}, fc: {}, prices: {}, taf: {}, ai: {}, notes: {}, scan: null,
+  tab: 'today', sel: null, q: '', onlySig: false, sort: 'edge', auto: true,
+  last: { mkt: 0, obs: 0, fc: 0, px: 0, ai: 0 }, busy: {}, err: {},
+  settings: { ...DEFAULTS }, models: [], A: {}
+};
+
+/* ============================ utils ============================ */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const num = v => { const n = typeof v === 'string' ? parseFloat(v) : v; return Number.isFinite(n) ? n : null; };
+const safeJSON = s => { try { return typeof s === 'string' ? JSON.parse(s) : s; } catch { return null; } };
+const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const median = a => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const pct = p => p == null ? '—' : (p >= 0.995 ? '>99' : p < 0.005 ? '<1' : Math.round(p * 100)) + '%';
+const cents = x => x == null ? '—' : (Math.round(x * 1000) / 10).toFixed(x < 0.1 ? 1 : 0) + '¢';
+const sgnC = x => (x >= 0 ? '+' : '−') + Math.abs(x * 100).toFixed(1) + '¢';
+const short = l => String(l).replace(/^(.+?)\s*or (below|lower|less)$/i, '≤$1').replace(/^(.+?)\s*or (higher|above|more)$/i, '≥$1');
+const deg = (v, U, d = 0) => v == null || !Number.isFinite(v) ? '—' : v.toFixed(d) + '°' + (U ? U : '');
+function ago(ms) { if (!ms) return '—'; const s = (Date.now() - ms) / 1000; return s < 60 ? Math.round(s) + 's' : s < 3600 ? Math.round(s / 60) + 'm' : Math.round(s / 3600) + 'h'; }
+async function fetchJSON(url, opt = {}, ms = 25000, asText = false) {
+  const ac = new AbortController(); const t = setTimeout(() => ac.abort(), ms);
+  try {
+    const r = await fetch(url, { ...opt, signal: ac.signal });
+    const body = asText ? await r.text() : await r.json().catch(() => null);
+    if (!r.ok) { const msg = body && body.error ? (body.error.message || body.error) : (typeof body === 'string' ? body.slice(0, 160) : 'HTTP ' + r.status); throw new Error(msg); }
+    return body;
+  } finally { clearTimeout(t); }
+}
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { let u = 0, v = 0; while (u === 0) u = r(); while (v === 0) v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function toast(msg, err = false) {
+  const d = document.createElement('div'); d.className = 'toast' + (err ? ' err' : ''); d.textContent = msg;
+  $('#toast').appendChild(d); setTimeout(() => d.remove(), err ? 9000 : 4500);
+}
+
+/* ============================ time ============================ */
+const fmtCache = {};
+function localParts(ms, tz) {
+  let f = fmtCache[tz];
+  if (!f) { try { f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } catch { f = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } fmtCache[tz] = f; }
+  const p = {}; for (const x of f.formatToParts(new Date(ms))) p[x.type] = x.value;
+  const hh = p.hour === '24' ? '00' : p.hour;
+  return { date: `${p.year}-${p.month}-${p.day}`, hour: +hh + (+p.minute) / 60, hm: `${hh}:${p.minute}` };
+}
+function addDays(d, n) { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); }
+function tzFromLon(lon) { const o = Math.round((lon || 0) / 15); return o === 0 ? 'Etc/UTC' : `Etc/GMT${o > 0 ? '-' : '+'}${Math.abs(o)}`; }
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+function dateLabel(d) { const [y, m, dd] = d.split('-'); return MONTHS[+m - 1].slice(0, 3).replace(/^./, c => c.toUpperCase()) + ' ' + (+dd); }
+
+/* ============================ settings ============================ */
+function loadSettings() {
+  try { const raw = localStorage.getItem('tempRadar.settings'); if (raw) Object.assign(S.settings, JSON.parse(raw)); } catch { /* storage unavailable */ }
+  try { const t = localStorage.getItem('tempRadar.theme'); if (t) document.documentElement.dataset.theme = t; } catch { }
+}
+function saveSettings() {
+  try {
+    const toStore = { ...S.settings }; if (!toStore.remember) toStore.key = '';
+    localStorage.setItem('tempRadar.settings', JSON.stringify(toStore));
+  } catch { /* ignore */ }
+}
+
+/* ============================ parsing ============================ */
+function parseMarket(m) {
+  const t = String(m.groupItemTitle || '').replace(/\s+/g, '').replace(/º/g, '°');
+  const r = t.match(/^(-?\d+(?:\.\d+)?)(?:-(-?\d+(?:\.\d+)?))?°([CF])(orbelow|orlower|orless|orhigher|orabove|ormore)?$/i);
+  if (!r) return null;
+  let lo = +r[1], hi = r[2] != null ? +r[2] : +r[1];
+  const tail = (r[4] || '').toLowerCase();
+  if (/below|lower|less/.test(tail)) lo = -Infinity;
+  if (/higher|above|more/.test(tail)) hi = Infinity;
+  const toks = safeJSON(m.clobTokenIds) || [];
+  const op = safeJSON(m.outcomePrices) || [];
+  const fs = m.feeSchedule || {};
+  return {
+    label: String(m.groupItemTitle).trim(), lo, hi, unit: r[3].toUpperCase(), idx: num(m.groupItemThreshold) ?? 0,
+    yes: toks[0], no: toks[1], bid: num(m.bestBid), ask: num(m.bestAsk), last: num(m.lastTradePrice), op: num(op[0]),
+    closed: !!m.closed, vol: num(m.volumeNum ?? m.volume) || 0,
+    fees: !!m.feesEnabled, feeRate: num(fs.rate) ?? 0, feeExp: num(fs.exponent) ?? 1
+  };
+}
+function parseEvent(e) {
+  const title = e.title || '';
+  const cm = title.match(/Highest temperature in (.+?) on /i);
+  const city = cm ? cm[1] : e.slug;
+  const desc = e.description || '';
+  const src = e.resolutionSource || (e.markets && e.markets[0] && e.markets[0].resolutionSource) || '';
+  const all = src + ' ' + desc;
+  let icao = null, srcType = 'noaa', m;
+  if ((m = all.match(/timeseries\?site=([A-Za-z0-9]{3,4})/i))) icao = m[1].toUpperCase();
+  else if ((m = all.match(/wunderground\.com\/history\/daily\/\S*?\/([A-Za-z0-9]{4})(?=[\/?\s"]|$)/i))) { icao = m[1].toUpperCase(); srcType = 'wu'; }
+  if (/Hong Kong Observatory/i.test(desc)) { srcType = 'hko'; icao = null; }
+  const buckets = (e.markets || []).map(parseMarket).filter(Boolean).sort((a, b) => a.idx - b.idx);
+  let date = e.eventDate;
+  if (!date) { const d = e.slug.match(/-on-([a-z]+)-(\d{1,2})-(\d{4})$/); if (d) date = `${d[3]}-${String(MONTHS.indexOf(d[1]) + 1).padStart(2, '0')}-${d[2].padStart(2, '0')}`; }
+  const srcUrl = (all.match(/https?:\/\/\S+?(?=[\s"]|$)/) || [src])[0];
+  return {
+    id: e.id, slug: e.slug, city, date, icao, srcType, decimal: /one decimal place/i.test(desc),
+    unit: buckets[0] ? buckets[0].unit : 'C', buckets, volume: num(e.volume) || 0, srcUrl
+  };
+}
+function bucketOf(ev, v) {
+  const b = ev.buckets;
+  for (let i = 0; i < b.length; i++) if (v >= b[i].lo - 1e-9 && v <= b[i].hi + 1e-9) return i;
+  if (v < b[0].lo) return 0;
+  // value in a gap (should not happen with integer ladders): nearest bucket
+  let best = b.length - 1, dist = Infinity;
+  for (let i = 0; i < b.length; i++) { const d = Math.min(Math.abs(v - b[i].lo), Math.abs(v - b[i].hi)); if (d < dist) { dist = d; best = i; } }
+  return best;
+}
+
+/* ============================ loaders ============================ */
+function setBusy(k, on) { S.busy[k] = on; renderPills(); }
+function fail(k, label, e) { const msg = e && e.message || String(e); if (S.err[k] !== msg) toast(label + ': ' + msg, true); S.err[k] = msg; }
+async function loadMarkets() {
+  setBusy('mkt', true);
+  try {
+    const min = new Date(Date.now() - 3 * 86400e3).toISOString().slice(0, 10) + 'T00:00:00Z';
+    let all = [];
+    for (let off = 0; off < 800; off += 100) {
+      const r = await fetchJSON(`${CFG.GAMMA}/events?tag_slug=highest-temperature&closed=false&limit=100&offset=${off}&end_date_min=${encodeURIComponent(min)}`, {}, 40000);
+      if (!Array.isArray(r)) break;
+      all = all.concat(r); if (r.length < 100) break;
+    }
+    S.events = all.map(parseEvent).filter(e => e.buckets.length >= 2 && e.date);
+    S.last.mkt = Date.now(); S.err.mkt = null;
+  } catch (e) { fail('mkt', 'Polymarket', e); }
+  setBusy('mkt', false);
+}
+function stationIds() { return [...new Set(S.events.map(e => e.icao).filter(Boolean))]; }
+async function loadObs(full) {
+  const ids = stationIds(); if (!ids.length) return;
+  setBusy('obs', true);
+  try {
+    const now = Date.now();
+    const st = new Date(now - (full ? 42 : 5) * 3600e3), en = new Date(now + 2 * 3600e3);
+    const tp = (d, n) => `year${n}=${d.getUTCFullYear()}&month${n}=${d.getUTCMonth() + 1}&day${n}=${d.getUTCDate()}&hour${n}=${d.getUTCHours()}&minute${n}=0`;
+    for (const grp of chunk(ids, 40)) {
+      const url = `${CFG.IEM}?${grp.map(i => 'station=' + i).join('&')}&data=tmpf&data=tmpc&data=metar&${tp(st, 1)}&${tp(en, 2)}&tz=Etc/UTC&format=onlycomma&latlon=yes&missing=M&trace=T&direct=no&report_type=3&report_type=4`;
+      const csv = await fetchJSON(url, {}, 45000, true);
+      parseIEM(csv);
+    }
+    for (const s of Object.values(S.stations)) s.obs.sort((a, b) => a.t - b.t);
+    S.last.obs = Date.now(); S.err.obs = null;
+  } catch (e) { fail('obs', 'METAR (IEM)', e); }
+  setBusy('obs', false);
+}
+function parseIEM(csv) {
+  if (!csv || !/^station,/.test(csv)) throw new Error('unexpected IEM response');
+  const lines = csv.trim().split('\n'); const head = lines.shift().split(',');
+  const ix = n => head.indexOf(n);
+  const iS = ix('station'), iV = ix('valid'), iLon = ix('lon'), iLat = ix('lat'), iF = ix('tmpf'), iC = ix('tmpc'), iM = ix('metar');
+  for (const ln of lines) {
+    const p = ln.split(','); if (p.length < head.length) continue;
+    const raw = p.slice(iM).join(',').trim();
+    let tok = raw.split(/\s+/); if (tok[0] === 'METAR' || tok[0] === 'SPECI') tok = tok.slice(1);
+    let id = /^[A-Z][A-Z0-9]{3}$/.test(tok[0]) ? tok[0] : p[iS];
+    if (id.length === 3) id = 'K' + id;
+    const t = Date.parse(p[iV].replace(' ', 'T') + ':00Z');
+    const f = num(p[iF]), c = num(p[iC]);
+    if (!Number.isFinite(t) || c == null) continue;
+    const s = S.stations[id] || (S.stations[id] = { id, lat: null, lon: null, obs: [], tz: null });
+    s.lat = num(p[iLat]); s.lon = num(p[iLon]); s.approx = false;
+    if (!s.obs.some(o => o.t === t)) s.obs.push({ t, c, f: f ?? c * 9 / 5 + 32, raw: raw === 'M' ? '' : raw });
+  }
+  const cut = Date.now() - 50 * 3600e3;
+  for (const s of Object.values(S.stations)) s.obs = s.obs.filter(o => o.t >= cut);
+}
+async function geocodeMissing() {
+  const miss = new Map();
+  for (const e of S.events) if (e.icao && !(S.stations[e.icao] && S.stations[e.icao].lat != null)) miss.set(e.icao, e);
+  for (const ev of [...miss.values()].slice(0, 20)) {
+    try {
+      const j = await fetchJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(ev.city)}&count=1&language=en&format=json`, {}, 15000);
+      const g = j && j.results && j.results[0];
+      if (g) S.stations[ev.icao] = { id: ev.icao, lat: g.latitude, lon: g.longitude, obs: (S.stations[ev.icao] || {}).obs || [], tz: g.timezone || null, approx: true };
+    } catch { /* ignore */ }
+  }
+}
+async function loadForecast() {
+  await geocodeMissing();
+  const locs = [];
+  for (const id of stationIds()) { const s = S.stations[id]; if (s && s.lat != null) locs.push({ key: id, lat: s.lat, lon: s.lon }); }
+  if (S.events.some(e => e.srcType === 'hko')) locs.push(HKO);
+  if (!locs.length) return;
+  setBusy('fc', true);
+  try {
+    for (const grp of chunk(locs, 20)) {
+      const url = `${CFG.OM}?latitude=${grp.map(l => l.lat.toFixed(4)).join(',')}&longitude=${grp.map(l => l.lon.toFixed(4)).join(',')}&hourly=temperature_2m&models=${MODELS.map(m => m[0]).join(',')}&timezone=auto&past_days=1&forecast_days=3&timeformat=unixtime`;
+      let r = await fetchJSON(url, {}, 45000);
+      if (r && r.error) throw new Error(r.reason || 'Open-Meteo error');
+      if (!Array.isArray(r)) r = [r];
+      r.forEach((loc, i) => {
+        const key = grp[i].key; const h = loc.hourly || {};
+        const models = {};
+        for (const [m] of MODELS) { const a = h['temperature_2m_' + m]; if (a && a.some(v => v != null)) models[m] = a; }
+        S.fc[key] = { tz: loc.timezone, times: (h.time || []).map(x => x * 1000), models };
+        if (S.stations[key]) S.stations[key].tz = loc.timezone;
+      });
+    }
+    S.last.fc = Date.now(); S.err.fc = null;
+  } catch (e) { fail('fc', 'Open-Meteo', e); }
+  setBusy('fc', false);
+}
+function relevantEvents() { return S.events.filter(e => { const c = classify(e); return c === 'today' || c === 'tomorrow' || c === 'settling'; }); }
+async function loadPrices() {
+  const toks = [];
+  for (const e of relevantEvents()) for (const b of e.buckets) if (b.yes && !b.closed) toks.push(b.yes);
+  if (!toks.length) return;
+  setBusy('px', true);
+  try {
+    for (const grp of chunk(toks, 100)) {
+      const body = JSON.stringify(grp.flatMap(t => [{ token_id: t, side: 'BUY' }, { token_id: t, side: 'SELL' }]));
+      const r = await fetchJSON(`${CFG.CLOB}/prices`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }, 25000);
+      for (const [tok, v] of Object.entries(r || {})) S.prices[tok] = { bid: num(v.BUY), ask: num(v.SELL), t: Date.now() };
+    }
+    S.last.px = Date.now(); S.err.px = null;
+  } catch (e) { fail('px', 'CLOB prices (falling back to Gamma)', e); }
+  setBusy('px', false);
+}
+function proxied(url) { const p = (S.settings.proxy || '').trim().replace(/\/+$/, ''); return p ? `${p}/?url=${encodeURIComponent(url)}` : null; }
+async function loadAviation(icao) {
+  if (!icao || !S.settings.proxy) return;
+  try {
+    const taf = await fetchJSON(proxied(`${CFG.AW}/taf?ids=${icao}&format=json`), {}, 20000);
+    const t = Array.isArray(taf) && taf[0];
+    if (t) S.taf[icao] = { raw: t.rawTAF || '', t: Date.now() };
+    const met = await fetchJSON(proxied(`${CFG.AW}/metar?ids=${icao}&hours=3&format=json`), {}, 20000);
+    const s = S.stations[icao];
+    if (s && Array.isArray(met)) for (const o of met) {
+      const t = (o.obsTime ? o.obsTime * 1000 : Date.parse(o.reportTime)); const c = num(o.temp);
+      if (Number.isFinite(t) && c != null && !s.obs.some(x => Math.abs(x.t - t) < 90e3)) s.obs.push({ t, c, f: c * 9 / 5 + 32, raw: o.rawOb || '' });
+    }
+    if (s) s.obs.sort((a, b) => a.t - b.t);
+  } catch (e) { toast('Proxy (aviationweather): ' + e.message, true); }
+}
+
+/* ============================ analysis ============================ */
+function evTz(ev) {
+  if (ev.srcType === 'hko') return (S.fc.HKO && S.fc.HKO.tz) || 'Asia/Hong_Kong';
+  const s = S.stations[ev.icao]; const f = S.fc[ev.icao];
+  return (f && f.tz) || (s && s.tz) || (s && s.lon != null ? tzFromLon(s.lon) : 'UTC');
+}
+function classify(ev) {
+  const today = localParts(Date.now(), evTz(ev)).date;
+  if (ev.date === today) return 'today';
+  if (ev.date === addDays(today, 1)) return 'tomorrow';
+  if (ev.date < today) return 'settling';
+  return 'later';
+}
+function nearestObs(obs, t, win) { let best = null, bd = win; for (const o of obs) { const d = Math.abs(o.t - t); if (d <= bd) { bd = d; best = o; } } return best; }
+function feeOf(b, price) { if (!S.settings.fees || !b.fees || !b.feeRate) return 0; return b.feeRate * Math.pow(price * (1 - price), b.feeExp || 1); }
+function livePx(b) {
+  const p = b.yes && S.prices[b.yes];
+  let bid = p && p.bid != null ? p.bid : b.bid, ask = p && p.ask != null ? p.ask : b.ask;
+  if (bid != null && bid <= 0) bid = null; if (ask != null && ask >= 1) ask = null;
+  const mid = bid != null && ask != null ? (bid + ask) / 2 : (b.last ?? b.op);
+  return { bid, ask, mid };
+}
+function analyze(ev) {
+  const now = Date.now(), U = ev.unit, tz = evTz(ev), cls = classify(ev), nowL = localParts(now, tz);
+  const conv = c => U === 'F' ? c * 9 / 5 + 32 : c;
+  const st = ev.icao ? S.stations[ev.icao] : null;
+  const fc = S.fc[ev.srcType === 'hko' ? 'HKO' : ev.icao];
+  const A = { ev, U, tz, cls, nowL, warn: [], models: {}, probs: null };
+  if (ev.srcType === 'hko') A.warn.push('HKO source (0.1° precision): forecast only, no signal');
+  // observations
+  const obs = (st ? st.obs : []).map(o => ({ ...o, v: U === 'F' ? o.f : o.c, L: localParts(o.t, tz) }));
+  A.obs = obs;
+  A.dayObs = obs.filter(o => o.L.date === ev.date);
+  const last = obs[obs.length - 1];
+  if (last) {
+    A.now = { v: last.v, hm: last.L.hm, raw: last.raw, age: (now - last.t) / 60e3 };
+    const prev = nearestObs(obs, last.t - 2 * 3600e3, 40 * 60e3); if (prev) A.trend = last.v - prev.v;
+    if (cls === 'today' && A.now.age > 150) A.warn.push(`last METAR ${Math.round(A.now.age / 60)}h old`);
+  } else if (ev.srcType !== 'hko') A.warn.push(st && st.approx ? 'no METAR feed — forecast at city coordinates' : 'no station observations');
+  if (A.dayObs.length) {
+    let mx = -Infinity, at = null;
+    for (const o of A.dayObs) { const r = Math.round(o.v); if (r > mx) { mx = r; at = o.L.hm; } }
+    A.obsMax = mx; A.obsMaxAt = at;
+  }
+  // models: bias-corrected projection of the rest of the day
+  const dayIdx = [];
+  if (fc) fc.times.forEach((t, i) => { if (localParts(t, tz).date === ev.date) dayIdx.push(i); });
+  A.dayTimes = dayIdx.map(i => fc.times[i]);
+  if (fc) for (const [m, label] of MODELS) {
+    const arr = fc.models[m]; if (!arr) continue;
+    let sw = 0, sd = 0, n = 0;
+    if (obs.length) fc.times.forEach((t, i) => {
+      if (t > now || t < now - 6 * 3600e3 || arr[i] == null) return;
+      const o = nearestObs(obs, t, 20 * 60e3); if (!o) return;
+      const w = 1 / (1 + (now - t) / 3600e3); sw += w; sd += w * (o.v - conv(arr[i])); n++;
+    });
+    const lim = U === 'F' ? 7 : 4;
+    const bias = n ? clamp(sd / sw, -lim, lim) : 0;
+    let rawMax = -Infinity, remMax = -Infinity, remAt = null;
+    const series = dayIdx.map(i => {
+      const t = fc.times[i], v = arr[i]; if (v == null) return { t, raw: null, adj: null };
+      const raw = conv(v); rawMax = Math.max(rawMax, raw);
+      let adj = null;
+      if (t > now) { adj = raw + bias * Math.exp(-((t - now) / 3600e3) / 10); if (adj > remMax) { remMax = adj; remAt = t; } }
+      return { t, raw, adj };
+    });
+    A.models[m] = { label, bias, nBias: n, rawMax: Number.isFinite(rawMax) ? rawMax : null, remMax: Number.isFinite(remMax) ? remMax : null, remAt, series };
+  }
+  const mk = Object.values(A.models).filter(x => x.rawMax != null);
+  A.nModels = mk.length;
+  // distribution (Monte Carlo over models + lead-time error)
+  const nb = ev.buckets.length; const counts = new Array(nb).fill(0);
+  const N = CFG.NSIM; const r = rng(hashStr(ev.slug + ':' + Math.floor(now / 600e3)));
+  const samples = [];
+  const hasObs = A.obsMax != null;
+  const round = x => ev.decimal ? Math.floor(x) : Math.round(x);
+  if (cls === 'settling' || (cls === 'today' && hasObs && !mk.some(x => x.remMax != null))) {
+    if (hasObs) { counts[bucketOf(ev, A.obsMax)] = N; for (let i = 0; i < 50; i++) samples.push(A.obsMax); A.final = true; }
+  } else if (mk.length) {
+    if (cls === 'today' && !hasObs && ev.srcType !== 'hko') A.warn.push('no observations for today yet — forecast only');
+    const sBase = U === 'F' ? 1.8 : 1;
+    for (let s = 0; s < N; s++) {
+      const m = mk[s % mk.length];
+      let v;
+      if (m.remMax == null) v = A.obsMax;
+      else {
+        const lead = Math.max(0, (m.remAt - now) / 3600e3);
+        const sd = sBase * Math.min(1.6, 0.45 + 0.06 * lead);
+        v = round(m.remMax + sd * gauss(r));
+        if (cls === 'today' && hasObs) v = Math.max(v, A.obsMax);
+      }
+      counts[bucketOf(ev, v)]++; samples.push(v);
+    }
+  }
+  if (cls === 'settling' && A.dayObs.length && A.dayObs[A.dayObs.length - 1].L.hour < 22.5) A.warn.push('late-evening reports missing — verify on the resolution source');
+  const tot = counts.reduce((a, b) => a + b, 0);
+  if (tot) {
+    A.probs = counts.map(c => c / tot);
+    samples.sort((a, b) => a - b);
+    A.med = samples[Math.floor(samples.length * 0.5)];
+    A.p10 = samples[Math.floor(samples.length * 0.1)];
+    A.p90 = samples[Math.min(samples.length - 1, Math.floor(samples.length * 0.9))];
+    let fi = 0; A.probs.forEach((p, i) => { if (p > A.probs[fi]) fi = i; }); A.favModel = fi;
+    if (cls === 'today' && hasObs) A.pLocked = A.probs[bucketOf(ev, A.obsMax)];
+  }
+  // peak timing
+  const rem = mk.filter(x => x.remAt).map(x => x.remAt);
+  if (rem.length) A.peakAt = localParts(median(rem), tz).hm;
+  // market
+  A.px = ev.buckets.map(livePx);
+  let fm = 0; A.px.forEach((p, i) => { if ((p.mid ?? -1) > (A.px[fm].mid ?? -1)) fm = i; }); A.favMkt = fm;
+  // edges
+  A.edges = ev.buckets.map((b, i) => {
+    if (!A.probs) return { yes: null, no: null };
+    const p = A.probs[i], { bid, ask } = A.px[i];
+    const yes = ask != null ? p - ask - feeOf(b, ask) : null;
+    const no = bid != null ? bid - p - feeOf(b, 1 - bid) : null;
+    return { yes, no };
+  });
+  A.noSignal = ev.srcType === 'hko' ? 'HKO source' : !A.probs ? 'no model' : (cls === 'today' && !hasObs) ? 'no obs yet' : null;
+  let best = null;
+  A.edges.forEach((e, i) => {
+    if (e.yes != null && (!best || e.yes > best.edge)) best = { i, side: 'YES', edge: e.yes, price: A.px[i].ask };
+    if (e.no != null && (!best || e.no > best.edge)) best = { i, side: 'NO', edge: e.no, price: 1 - A.px[i].bid };
+  });
+  A.best = best;
+  A.signal = !A.noSignal && best && best.edge * 100 >= S.settings.edge ? best : null;
+  A.status = A.final ? (cls === 'settling' ? 'final' : 'day done') : cls === 'tomorrow' ? 'forecast' : ev.srcType === 'hko' ? 'forecast' : (A.pLocked != null && A.pLocked > 0.9 && nowL.hour >= 14) ? 'peak passed' : 'live';
+  return A;
+}
+function analyzeAll() { S.A = {}; for (const ev of S.events) { try { S.A[ev.slug] = analyze(ev); } catch (e) { console.error('analyze', ev.slug, e); } } }
+
+/* ============================ render: header ============================ */
+function renderPills() {
+  const items = [['mkt', 'Polymarket'], ['px', 'Prices'], ['obs', 'METAR'], ['fc', 'Models'], ['ai', 'Gemini']];
+  $('#pills').innerHTML = items.map(([k, l]) => {
+    const cls = S.busy[k] ? 'busy' : S.err[k] ? 'err' : S.last[k] ? 'ok' : '';
+    const title = S.err[k] ? esc(S.err[k]) : S.last[k] ? 'updated ' + ago(S.last[k]) + ' ago' : 'not loaded';
+    return `<span class="pill" title="${title}"><span class="dot ${cls}"></span>${l}<span class="muted">${S.busy[k] ? '…' : ago(S.last[k])}</span></span>`;
+  }).join('');
+}
+function renderClock() {
+  const d = new Date();
+  $('#clock').textContent = `${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} local · ${d.toISOString().slice(11, 16)} UTC`;
+}
+function listFor(tab) { return S.events.filter(e => S.A[e.slug] && S.A[e.slug].cls === tab); }
+function renderTabs() {
+  const tabs = [['today', 'Today'], ['tomorrow', 'Tomorrow'], ['settling', 'Settling']];
+  $('#tabs').innerHTML = tabs.map(([k, l]) => {
+    const L = listFor(k); const sig = L.filter(e => S.A[e.slug].signal).length;
+    return `<button class="tab ${S.tab === k ? 'on' : ''}" data-tab="${k}">${l}<span class="cnt">${L.length}</span>${sig ? `<span class="sigc">● ${sig}</span>` : ''}</button>`;
+  }).join('');
+}
+
+/* ============================ render: table ============================ */
+function sigBadge(A) {
+  if (A.noSignal) return `<span class="sig flat">${esc(A.noSignal)}</span>`;
+  if (!A.best) return '<span class="sig flat">no book</span>';
+  const b = A.ev.buckets[A.best.i];
+  const cls = A.signal ? (A.best.side === 'YES' ? 'yes' : 'no') : 'flat';
+  const e = A.best.edge * 100, ec = (e >= 0 ? '+' : '−') + Math.abs(e).toFixed(Math.abs(e) >= 10 ? 0 : 1) + '¢';
+  return `<span class="sig ${cls}" title="${A.best.side} ${esc(b.label)}: net edge ${sgnC(A.best.edge)} after est. fee">${A.signal ? (A.best.side === 'YES' ? '▲' : '▼') : ''} ${A.best.side} ${esc(short(b.label))} ${ec}</span>`;
+}
+function renderTable() {
+  let L = listFor(S.tab);
+  const q = S.q.trim().toLowerCase();
+  if (q) L = L.filter(e => (e.city + ' ' + (e.icao || '')).toLowerCase().includes(q));
+  if (S.onlySig) L = L.filter(e => S.A[e.slug].signal);
+  const key = S.sort;
+  L.sort((a, b) => {
+    const A = S.A[a.slug], B = S.A[b.slug];
+    if (key === 'vol') return b.volume - a.volume;
+    if (key === 'city') return a.city.localeCompare(b.city);
+    if (key === 'local') return B.nowL.hour - A.nowL.hour;
+    const ea = A.best && !A.noSignal ? A.best.edge : -9, eb = B.best && !B.noSignal ? B.best.edge : -9;
+    return eb - ea;
+  });
+  const titles = { today: 'Today — local calendar day at each station', tomorrow: 'Tomorrow — forecast markets', settling: 'Settling — local day over, market still open' };
+  $('#tblTitle').textContent = titles[S.tab];
+  $('#tblNote').textContent = `${L.length} markets · threshold ${S.settings.edge}¢`;
+  const showObs = S.tab !== 'tomorrow';
+  $('#radar thead').innerHTML = `<tr><th>City</th><th class="num">Local</th><th class="num">Now</th>${showObs ? '<th class="num">Max so far</th>' : ''}<th class="num">Proj. max</th><th>Model · market</th><th>Best edge</th><th>AI</th></tr>`;
+  if (!L.length) { $('#radar tbody').innerHTML = `<tr><td colspan="8" class="empty">${S.events.length ? 'No markets match.' : '<span class="spin"></span> Loading markets…'}</td></tr>`; return; }
+  $('#radar tbody').innerHTML = L.map(ev => {
+    const A = S.A[ev.slug], U = ev.unit;
+    const tr = A.trend != null && Math.abs(A.trend) >= 0.5 ? `<span class="sub">${A.trend > 0 ? '▲' : '▼'}${Math.abs(A.trend).toFixed(0)}</span>` : '';
+    const proj = A.probs ? `<b>${deg(A.med)}</b><div class="sub">${A.p10 === A.p90 ? '&nbsp;' : deg(A.p10) + '–' + deg(A.p90)}</div>` : '<span class="muted">—</span>';
+    const fav = A.probs ? `<span class="bk">${esc(short(ev.buckets[A.favModel].label))}</span> <span class="sub">${pct(A.probs[A.favModel])}</span>` : '<span class="muted">—</span>';
+    const mf = A.px[A.favMkt]; const mfav = mf && mf.mid != null ? `mkt ${esc(short(ev.buckets[A.favMkt].label))} · ${cents(mf.mid)}` : 'mkt —';
+    const ai = S.ai[ev.slug] && S.ai[ev.slug].data;
+    const aiCell = ai ? `<span class="ai-pick" title="${esc(ai.summary || '')}">${esc(ai.most_likely_bucket || '')} · ${esc(ai.confidence || '')}</span>` : `<button class="ai-btn" data-ai="${esc(ev.slug)}">AI</button>`;
+    const warn = A.warn.length ? ` <span class="tag w" title="${esc(A.warn.join(' · '))}">!</span>` : '';
+    const stTag = A.status === 'peak passed' ? ' <span class="tag">peak passed</span>' : A.status === 'final' ? ' <span class="tag">final</span>' : '';
+    return `<tr data-slug="${esc(ev.slug)}" class="${S.sel === ev.slug ? 'sel' : ''}">
+      <td><div class="c-name">${esc(ev.city)}${warn}</div><div class="c-sub">${esc(ev.icao || 'HKO')} · °${U} · ${dateLabel(ev.date)}${stTag}</div></td>
+      <td class="num">${A.nowL.hm}</td>
+      <td class="num">${A.now ? deg(A.now.v) : '—'} ${tr}</td>
+      ${showObs ? `<td class="num">${A.obsMax != null ? '<b>' + deg(A.obsMax) + '</b><div class="sub">' + A.obsMaxAt + '</div>' : '—'}</td>` : ''}
+      <td class="num">${proj}</td>
+      <td><div style="white-space:nowrap">${fav}</div><div class="sub" style="white-space:nowrap">${mfav}</div></td>
+      <td>${sigBadge(A)}</td>
+      <td>${aiCell}</td></tr>`;
+  }).join('');
+}
+
+/* ============================ render: detail ============================ */
+function renderDetail(full) {
+  const ev = S.events.find(e => e.slug === S.sel); const A = ev && S.A[ev.slug];
+  const box = $('#detail');
+  if (!ev || !A) { box.innerHTML = '<div class="empty">Select a market on the left.</div>'; return; }
+  if (full || !box.querySelector('#d-ai-in') || box.dataset.slug !== ev.slug) {
+    box.dataset.slug = ev.slug;
+    box.innerHTML = `<div class="d-sec" id="d-head"></div><div class="d-sec" id="d-tiles"></div><div class="d-sec" id="d-chart"></div>
+      <div class="d-sec" id="d-ladder"></div>
+      <div class="d-sec" id="d-ai-in"><div class="card-h" style="padding:0 0 8px;border:0"><h3>Gemini analysis</h3></div>
+        <textarea id="aiNote" placeholder="Optional: your position or question, e.g. “I hold 20°C YES at 0.28 — hold, hedge or exit?”">${esc(S.notes[ev.slug] || '')}</textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" id="btnAiCity">Analyze with Gemini</button><span class="sub" id="aiMeta"></span></div>
+        <div id="d-ai-out" class="ai-out"></div></div>
+      <div class="d-sec" id="d-models"></div><div class="d-sec" id="d-metar"></div>`;
+  }
+  const U = ev.unit;
+  const pmUrl = `https://polymarket.com/event/${ev.slug}`;
+  const links = [`<a href="${pmUrl}" target="_blank" rel="noopener">Polymarket</a>`];
+  if (ev.srcUrl) links.push(`<a href="${esc(ev.srcUrl)}" target="_blank" rel="noopener">Resolution source</a>`);
+  if (ev.icao) links.push(`<a href="${CFG.AW}/metar?ids=${ev.icao}&hours=24&format=raw" target="_blank" rel="noopener">METAR</a>`, `<a href="${CFG.AW}/taf?ids=${ev.icao}&format=raw" target="_blank" rel="noopener">TAF</a>`);
+  $('#d-head').innerHTML = `<div class="d-title"><b>${esc(ev.city)}</b><span class="ink2">${dateLabel(ev.date)} · ${A.cls}</span><span class="tag">${esc(ev.icao || 'HKO')}</span><span class="tag">°${U}</span><span class="tag">${A.status}</span></div>
+    <div class="links">${links.join('')}<span class="muted">local ${A.nowL.hm} · ${esc(A.tz)} · vol $${Math.round(ev.volume).toLocaleString()}</span></div>
+    ${A.warn.length ? `<div class="warn" style="margin-top:6px;font-size:12px">⚠ ${esc(A.warn.join(' · '))}</div>` : ''}`;
+  const tiles = [];
+  if (A.cls !== 'tomorrow') tiles.push(['Now', A.now ? deg(A.now.v, U) : '—', A.now ? `${A.now.hm} · ${Math.round(A.now.age)}m ago` : '']);
+  if (A.cls !== 'tomorrow') tiles.push([A.cls === 'settling' ? 'Final max' : 'Max so far', A.obsMax != null ? deg(A.obsMax, U) : '—', A.obsMaxAt ? 'at ' + A.obsMaxAt : '']);
+  tiles.push(['Proj. max', A.probs ? deg(A.med, U) : '—', A.probs ? `80%: ${deg(A.p10)}–${deg(A.p90)}` : '']);
+  tiles.push(['Model pick', A.probs ? esc(ev.buckets[A.favModel].label) : '—', A.probs ? pct(A.probs[A.favModel]) : '']);
+  if (A.peakAt && A.cls !== 'settling') tiles.push(['Peak ≈', A.peakAt, `${A.nModels} models`]);
+  $('#d-tiles').innerHTML = `<div class="tiles">${tiles.map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('')}</div>`;
+  renderChart(A);
+  renderLadder(A);
+  renderModels(A);
+  const tail = A.dayObs.length ? A.dayObs : A.obs;
+  const met = tail.slice(-8).reverse().map(o => `${o.L.hm}  ${o.raw}`).join('\n');
+  const taf = ev.icao && S.taf[ev.icao] ? S.taf[ev.icao].raw : null;
+  $('#d-metar').innerHTML = `<h3 style="margin-bottom:6px">Latest METAR (local time)</h3><pre class="metar mono">${esc(met || 'No reports.')}</pre>
+    <h3 style="margin:10px 0 6px">TAF</h3><pre class="metar mono">${taf ? esc(taf) : S.settings.proxy ? 'Loading…' : 'Set the optional proxy in Settings to load TAF here, or open the TAF link above.'}</pre>`;
+  renderAI(ev);
+}
+function renderChart(A) {
+  const ev = A.ev, U = ev.unit, box = $('#d-chart');
+  if (!A.dayTimes || !A.dayTimes.length) { box.innerHTML = '<div class="muted">No model data yet.</div>'; return; }
+  const W = clamp(Math.round((box.clientWidth || 664) - 24), 300, 900), H = W < 480 ? 200 : 230, ml = 34, mr = 12, mt = 10, mb = 24;
+  const t0 = A.dayTimes[0] - Math.floor(localParts(A.dayTimes[0], A.tz).hour) * 3600e3, t1 = t0 + 24 * 3600e3;
+  const mods = Object.values(A.models);
+  const rows = A.dayTimes.map((t, k) => {
+    const raws = mods.map(m => m.series[k] && m.series[k].raw).filter(v => v != null);
+    const adjs = mods.map(m => m.series[k] && m.series[k].adj).filter(v => v != null);
+    return { t, rawMed: median(raws), adjMed: median(adjs), lo: adjs.length ? Math.min(...adjs) : null, hi: adjs.length ? Math.max(...adjs) : null };
+  });
+  const obsPts = A.dayObs.filter(o => o.t >= t0 && o.t <= t1).map(o => ({ t: o.t, v: o.v }));
+  const vals = [...rows.flatMap(r => [r.rawMed, r.lo, r.hi]), ...obsPts.map(o => o.v)].filter(v => v != null);
+  let y0 = Math.floor(Math.min(...vals)) - 1, y1 = Math.ceil(Math.max(...vals)) + 1;
+  const X = t => ml + (t - t0) / (t1 - t0) * (W - ml - mr);
+  const Y = v => mt + (1 - (v - y0) / (y1 - y0)) * (H - mt - mb);
+  const step = (y1 - y0) > 16 ? (U === 'F' ? 4 : 2) : (y1 - y0) > 8 ? 2 : 1;
+  let g = '';
+  for (let v = Math.ceil(y0 / step) * step; v <= y1; v += step) g += `<line x1="${ml}" x2="${W - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${ml - 6}" y="${Y(v) + 3.5}" text-anchor="end" font-size="10" fill="var(--muted)">${v}°</text>`;
+  for (let hh = 0; hh < 24; hh += (W < 480 ? 6 : 3)) { const t = t0 + hh * 3600e3; g += `<text x="${X(t)}" y="${H - 7}" text-anchor="middle" font-size="10" fill="var(--muted)">${localParts(t, A.tz).hm.slice(0, 2)}h</text>`; }
+  const path = pts => pts.length ? 'M' + pts.map(p => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join('L') : '';
+  const fut = rows.filter(r => r.adjMed != null);
+  let band = '';
+  if (fut.length > 1) band = `<path d="${path(fut.map(r => [r.t, r.hi]))}L${fut.slice().reverse().map(r => `${X(r.t).toFixed(1)},${Y(r.lo).toFixed(1)}`).join('L')}Z" fill="var(--band)" stroke="none"/>`;
+  const rawP = path(rows.filter(r => r.rawMed != null).map(r => [r.t, r.rawMed]));
+  const adjP = path(fut.map(r => [r.t, r.adjMed]));
+  const obsP = path(obsPts.map(o => [o.t, o.v]));
+  const now = Date.now();
+  const nowL = now > t0 && now < t1 ? `<line x1="${X(now)}" x2="${X(now)}" y1="${mt}" y2="${H - mb}" stroke="var(--axis)" stroke-dasharray="3 3"/><text x="${X(now) + 4}" y="${mt + 9}" font-size="10" fill="var(--muted)">now</text>` : '';
+  const maxL = A.obsMax != null ? `<line x1="${ml}" x2="${W - mr}" y1="${Y(A.obsMax)}" y2="${Y(A.obsMax)}" stroke="var(--s1)" stroke-opacity=".45" stroke-dasharray="2 4"/><text x="${W - mr - 2}" y="${Y(A.obsMax) - 4}" text-anchor="end" font-size="10" fill="var(--ink-2)">max so far ${A.obsMax}°</text>` : '';
+  const dots = obsPts.map(o => `<circle cx="${X(o.t).toFixed(1)}" cy="${Y(o.v).toFixed(1)}" r="3" fill="var(--s1)" stroke="var(--surface)" stroke-width="1.5"/>`).join('');
+  box.innerHTML = `<div class="legend"><span><i style="border-color:var(--s1)"></i>Observed</span><span><i style="border-color:var(--s2)"></i>Projection (bias-corrected median)</span><span><i class="band"></i>Model range</span><span><i style="border-color:var(--muted);border-top-style:dashed"></i>Models raw</span></div>
+    <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Temperature through the local day">
+      <defs><clipPath id="plotclip"><rect x="${ml - 4}" y="${mt - 4}" width="${W - ml - mr + 8}" height="${H - mt - mb + 8}"/></clipPath></defs>
+      ${g}<line x1="${ml}" x2="${W - mr}" y1="${H - mb}" y2="${H - mb}" stroke="var(--axis)"/><g clip-path="url(#plotclip)">
+      ${band}<path d="${rawP}" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/>
+      <path d="${adjP}" fill="none" stroke="var(--s2)" stroke-width="2" stroke-linejoin="round"/>
+      ${maxL}${nowL}<path d="${obsP}" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>${dots}</g>
+      <line id="cx" y1="${mt}" y2="${H - mb}" stroke="var(--ink-2)" stroke-width="1" visibility="hidden"/>
+      <rect x="${ml}" y="${mt}" width="${W - ml - mr}" height="${H - mt - mb}" fill="transparent" id="hit"/>
+    </svg><div class="tip" id="tip"></div></div>`;
+  const svg = box.querySelector('svg'), tip = box.querySelector('#tip'), cx = box.querySelector('#cx');
+  const move = evt => {
+    const rc = svg.getBoundingClientRect(); const sx = (evt.clientX - rc.left) / rc.width * W;
+    const t = t0 + (sx - ml) / (W - ml - mr) * (t1 - t0);
+    let k = 0, bd = Infinity; rows.forEach((r, i) => { const d = Math.abs(r.t - t); if (d < bd) { bd = d; k = i; } });
+    const r = rows[k]; const o = nearestObs(A.dayObs, r.t, 35 * 60e3);
+    cx.setAttribute('x1', X(r.t)); cx.setAttribute('x2', X(r.t)); cx.setAttribute('visibility', 'visible');
+    tip.innerHTML = `<b>${localParts(r.t, A.tz).hm}</b><br>${o ? 'Observed ' + deg(o.v, U) + '<br>' : ''}${r.adjMed != null ? 'Projection ' + deg(r.adjMed, U, 1) + ' <span class="muted">(' + deg(r.lo, '', 1) + '–' + deg(r.hi, '', 1) + ')</span><br>' : ''}${r.rawMed != null ? '<span class="muted">Models raw ' + deg(r.rawMed, U, 1) + '</span>' : ''}`;
+    tip.style.display = 'block';
+    const px = X(r.t) / W * rc.width; tip.style.left = Math.min(rc.width - 170, Math.max(0, px + 10)) + 'px'; tip.style.top = '8px';
+  };
+  const hit = box.querySelector('#hit');
+  hit.addEventListener('mousemove', move);
+  hit.addEventListener('mouseleave', () => { tip.style.display = 'none'; cx.setAttribute('visibility', 'hidden'); });
+}
+function renderLadder(A) {
+  const ev = A.ev, ai = S.ai[ev.slug] && S.ai[ev.slug].data;
+  const aiP = {}; if (ai && Array.isArray(ai.probabilities)) for (const x of ai.probabilities) aiP[String(x.bucket).replace(/\s+/g, '')] = x.p;
+  const rows = ev.buckets.map((b, i) => {
+    const p = A.probs ? A.probs[i] : null, px = A.px[i], e = A.edges[i];
+    const bar = `<div class="pbar" title="Model ${pct(p)} · market ${cents(px.mid)}">${p != null ? `<div class="f" style="width:${(p * 100).toFixed(1)}%"></div>` : ''}${px.mid != null ? `<div class="m" style="left:calc(${(px.mid * 100).toFixed(1)}% - 1px)"></div>` : ''}${aiP[b.label.replace(/\s+/g, '')] != null ? `<div class="a" style="left:${(clamp(aiP[b.label.replace(/\s+/g, '')], 0, 1) * 100).toFixed(1)}%"></div>` : ''}</div>`;
+    const ec = x => x == null ? '<span class="muted">—</span>' : `<span class="${x * 100 >= S.settings.edge ? 'pos' : x < 0 ? 'muted' : 'ink2'}">${sgnC(x)}</span>`;
+    const aiv = aiP[b.label.replace(/\s+/g, '')];
+    return `<tr class="${i === A.favModel ? 'fav' : ''}"><td class="bk">${esc(b.label)}</td><td style="width:34%">${bar}</td><td class="num">${pct(p)}</td><td class="num">${cents(px.bid)}</td><td class="num">${cents(px.ask)}</td><td class="num">${ec(e.yes)}</td><td class="num">${ec(e.no)}</td>${ai ? `<td class="num">${aiv != null ? pct(aiv) : '—'}</td>` : ''}</tr>`;
+  }).join('');
+  $('#d-ladder').innerHTML = `<div class="legend"><span><i style="border-color:var(--s1);border-top-width:6px"></i>Model probability</span><span><i style="border-color:var(--ink);width:2px;height:10px;border-top:0;border-left:2px solid var(--ink)"></i>Market mid</span>${ai ? '<span><i style="border:0;width:7px;height:7px;border-radius:50%;background:var(--s2)"></i>Gemini</span>' : ''}</div>
+    <div class="scroll-x"><table class="ladder"><thead><tr><th>Bucket</th><th>Model vs market</th><th class="num">Model</th><th class="num">Bid</th><th class="num">Ask</th><th class="num">Edge YES</th><th class="num">Edge NO</th>${ai ? '<th class="num">AI</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="sub" style="margin-top:6px">Edge YES = model p − ask − fee · Edge NO = bid − model p − fee. Signal ≥ ${S.settings.edge}¢. Signals only — no orders are placed.</div>`;
+}
+function renderModels(A) {
+  const U = A.ev.unit;
+  const rows = Object.values(A.models).map(m => `<tr><td>${esc(m.label)}</td><td class="num">${deg(m.rawMax, '', 1)}</td><td class="num">${m.nBias ? (m.bias >= 0 ? '+' : '') + m.bias.toFixed(1) + '°' : '<span class="muted">—</span>'}</td><td class="num">${m.remMax != null ? deg(m.remMax, '', 1) : '<span class="muted">done</span>'}</td><td class="num">${m.remAt ? localParts(m.remAt, A.tz).hm : '—'}</td></tr>`).join('');
+  $('#d-models').innerHTML = `<h3 style="margin-bottom:6px">Models (°${U})</h3><div class="scroll-x"><table><thead><tr><th>Model</th><th class="num">Raw day max</th><th class="num">Bias now</th><th class="num">Adj. remaining max</th><th class="num">At</th></tr></thead><tbody>${rows || '<tr><td colspan="5" class="muted">No model data.</td></tr>'}</tbody></table></div>
+    <div class="sub" style="margin-top:6px">Bias = observed − model over the last 6 h (recent hours weigh more), fading with lead time. Final max = max(observed so far, adjusted remaining max) + lead-time error.</div>`;
+}
+function renderAI(ev) {
+  const out = $('#d-ai-out'); if (!out) return;
+  const R = S.ai[ev.slug];
+  $('#aiMeta').textContent = R ? `${R.model} · ${new Date(R.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${R.usage ? ' · ' + (R.usage.totalTokenCount || '?') + ' tokens' : ''}` : (S.settings.key ? '' : 'Add your API key in Settings');
+  if (!R) { out.innerHTML = ''; return; }
+  if (R.loading) { out.innerHTML = '<p><span class="spin"></span> Gemini is thinking…</p>'; return; }
+  if (R.error) { out.innerHTML = `<p class="neg">${esc(R.error)}</p>`; return; }
+  const d = R.data || {};
+  const list = a => Array.isArray(a) && a.length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  const sig = Array.isArray(d.signals) ? d.signals.filter(s => s.action && s.action !== 'NO_TRADE') : [];
+  out.innerHTML = `<div class="ai-head" style="margin-top:10px"><span class="tag">pick ${esc(d.most_likely_bucket || '—')}</span><span class="tag">confidence ${esc(d.confidence || '—')}</span>${d.expected_max != null ? `<span class="tag">exp. max ${esc(d.expected_max)}°</span>` : ''}</div>
+    <p>${esc(d.summary || '')}</p>
+    ${d.answer_to_user ? `<h4>Your question</h4><p>${esc(d.answer_to_user)}</p>` : ''}
+    ${sig.length ? `<h4>Signals</h4><ul>${sig.map(s => `<li><b class="${s.action === 'BUY_YES' ? 'pos' : 'neg'}">${esc(s.action.replace('_', ' '))} ${esc(s.bucket)}</b>${s.edge_cents != null ? ' · ' + esc(s.edge_cents) + '¢' : ''} — ${esc(s.rationale || '')}</li>`).join('')}</ul>` : ''}
+    ${d.key_drivers ? '<h4>Drivers</h4>' + list(d.key_drivers) : ''}${d.risks ? '<h4>Risks</h4>' + list(d.risks) : ''}
+    ${R.sources && R.sources.length ? '<h4>Sources</h4><ul>' + R.sources.map(s => `<li><a href="${esc(s.uri)}" target="_blank" rel="noopener">${esc(s.title || s.uri)}</a></li>`).join('') + '</ul>' : ''}`;
+}
+function renderScan() {
+  const box = $('#scan'); const R = S.scan;
+  if (!R) { box.className = 'card'; return; }
+  box.className = 'card on';
+  const body = R.loading ? '<p class="d-sec"><span class="spin"></span> Gemini is scanning the board…</p>' : R.error ? `<p class="d-sec neg">${esc(R.error)}</p>` : (() => {
+    const d = R.data || {};
+    const rows = (d.top || []).map(x => {
+      const ev = S.events.find(e => e.city.toLowerCase() === String(x.city).toLowerCase() && e.date === x.date) || S.events.find(e => e.city.toLowerCase() === String(x.city).toLowerCase() && S.A[e.slug] && S.A[e.slug].cls === S.tab);
+      return `<tr ${ev ? `data-slug="${esc(ev.slug)}"` : ''}><td><b>${esc(x.city)}</b> <span class="sub">${esc(x.date || '')}</span></td><td class="bk">${esc(x.bucket)}</td><td><span class="sig ${x.action === 'BUY_YES' ? 'yes' : x.action === 'BUY_NO' ? 'no' : 'flat'}">${esc(String(x.action).replace('_', ' '))}</span></td><td class="num">${x.model_p != null ? pct(x.model_p) : '—'}</td><td class="num">${x.price != null ? cents(x.price) : '—'}</td><td>${esc(x.confidence || '')}</td><td>${esc(x.why || '')}</td></tr>`;
+    }).join('');
+    return `<div class="d-sec"><p style="margin:0 0 8px">${esc(d.summary || '')}</p>
+      <div class="scroll-x"><table><thead><tr><th>Market</th><th>Bucket</th><th>Action</th><th class="num">p</th><th class="num">Price</th><th>Conf.</th><th>Why</th></tr></thead><tbody>${rows || '<tr><td colspan="7" class="muted">No opportunities flagged.</td></tr>'}</tbody></table></div>
+      ${d.warnings && d.warnings.length ? `<ul class="warn" style="margin:8px 0 0;padding-left:18px">${d.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}</div>`;
+  })();
+  box.innerHTML = `<div class="card-h"><h3>Gemini scan — ${esc(R.tab || '')}</h3><span class="sub">${R.model ? esc(R.model) + ' · ' + new Date(R.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}</span><div class="spacer"></div><button id="btnCloseScan">Hide</button></div>${body}`;
+}
+function renderAll() { renderPills(); renderTabs(); renderTable(); renderDetail(false); }
+
+/* ============================ Gemini ============================ */
+const CITY_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    most_likely_bucket: { type: 'STRING' },
+    confidence: { type: 'STRING', enum: ['low', 'medium', 'high'] },
+    expected_max: { type: 'NUMBER' },
+    probabilities: { type: 'ARRAY', items: { type: 'OBJECT', properties: { bucket: { type: 'STRING' }, p: { type: 'NUMBER' } }, required: ['bucket', 'p'] } },
+    signals: { type: 'ARRAY', items: { type: 'OBJECT', properties: { bucket: { type: 'STRING' }, action: { type: 'STRING', enum: ['BUY_YES', 'BUY_NO', 'NO_TRADE'] }, edge_cents: { type: 'NUMBER' }, rationale: { type: 'STRING' } }, required: ['bucket', 'action'] } },
+    summary: { type: 'STRING' },
+    key_drivers: { type: 'ARRAY', items: { type: 'STRING' } },
+    risks: { type: 'ARRAY', items: { type: 'STRING' } },
+    answer_to_user: { type: 'STRING' }
+  },
+  required: ['most_likely_bucket', 'confidence', 'probabilities', 'summary']
+};
+const SCAN_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    summary: { type: 'STRING' },
+    top: { type: 'ARRAY', items: { type: 'OBJECT', properties: { city: { type: 'STRING' }, date: { type: 'STRING' }, bucket: { type: 'STRING' }, action: { type: 'STRING', enum: ['BUY_YES', 'BUY_NO', 'WATCH'] }, model_p: { type: 'NUMBER' }, price: { type: 'NUMBER' }, confidence: { type: 'STRING', enum: ['low', 'medium', 'high'] }, why: { type: 'STRING' } }, required: ['city', 'date', 'bucket', 'action', 'why'] } },
+    warnings: { type: 'ARRAY', items: { type: 'STRING' } }
+  },
+  required: ['summary', 'top']
+};
+async function listModels() {
+  const key = S.settings.key; if (!key) throw new Error('Add your Google AI Studio API key first');
+  let out = [], page = '';
+  for (let i = 0; i < 5; i++) {
+    const j = await fetchJSON(`${CFG.GEM}/models?pageSize=200${page ? '&pageToken=' + encodeURIComponent(page) : ''}`, { headers: { 'x-goog-api-key': key } });
+    out = out.concat(j.models || []); page = j.nextPageToken; if (!page) break;
+  }
+  S.models = out.filter(m => (m.supportedGenerationMethods || []).includes('generateContent') && /gemini/i.test(m.name))
+    .map(m => ({ id: m.name.replace(/^models\//, ''), label: m.displayName || m.name }));
+  return S.models;
+}
+function defaultModel(list) {
+  const ok = list.filter(m => /flash/i.test(m.id) && !/lite|image|tts|live|audio|embed|exp|native|robotics|computer/i.test(m.id));
+  const ver = id => { const m = id.match(/gemini-(\d+(?:\.\d+)?)/); return m ? parseFloat(m[1]) : 0; };
+  ok.sort((a, b) => (ver(b.id) - ver(a.id)) || (/preview/.test(a.id) - /preview/.test(b.id)) || a.id.length - b.id.length);
+  return (ok[0] || list[0] || {}).id || '';
+}
+async function gemini(sys, payload, schema) {
+  const key = S.settings.key; if (!key) throw new Error('Add your Google AI Studio API key in Settings');
+  let model = S.settings.model;
+  if (!model) { model = defaultModel(await listModels()); S.settings.model = model; saveSettings(); }
+  if (!model) throw new Error('No Gemini model available for this key');
+  const body = {
+    systemInstruction: { parts: [{ text: sys }] },
+    contents: [{ role: 'user', parts: [{ text: JSON.stringify(payload) }] }],
+    generationConfig: { temperature: 0.2 }
+  };
+  if (S.settings.grounding) body.tools = [{ google_search: {} }];
+  else { body.generationConfig.responseMimeType = 'application/json'; body.generationConfig.responseSchema = schema; }
+  setBusy('ai', true);
+  try {
+    const j = await fetchJSON(`${CFG.GEM}/models/${encodeURIComponent(model)}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 120000);
+    const cand = j.candidates && j.candidates[0];
+    if (!cand) throw new Error(j.promptFeedback && j.promptFeedback.blockReason ? 'Blocked: ' + j.promptFeedback.blockReason : 'Empty response');
+    const text = (cand.content && cand.content.parts || []).map(p => p.text || '').join('');
+    const data = looseJSON(text);
+    if (!data) throw new Error('Could not parse Gemini JSON' + (cand.finishReason ? ' (' + cand.finishReason + ')' : ''));
+    const gm = cand.groundingMetadata;
+    const sources = gm && gm.groundingChunks ? gm.groundingChunks.map(c => c.web).filter(Boolean).slice(0, 6) : [];
+    S.last.ai = Date.now(); S.err.ai = null;
+    return { data, model, usage: j.usageMetadata, sources, t: Date.now() };
+  } catch (e) { S.err.ai = e.message; throw e; }
+  finally { setBusy('ai', false); }
+}
+function looseJSON(t) {
+  if (!t) return null;
+  try { return JSON.parse(t); } catch { }
+  const m = t.replace(/```json|```/g, '').match(/\{[\s\S]*\}/);
+  if (m) { try { return JSON.parse(m[0]); } catch { } }
+  return null;
+}
+const r1 = x => x == null || !Number.isFinite(x) ? null : Math.round(x * 10) / 10;
+function cityPayload(A, note) {
+  const ev = A.ev, now = Date.now();
+  const hrs = A.dayTimes || [];
+  return {
+    market: { city: ev.city, station: ev.icao || 'Hong Kong Observatory', resolution: ev.srcType === 'hko' ? 'HKO Absolute Daily Max, 0.1°C precision' : 'highest reported temperature of the station for the local calendar day, whole degrees', unit: '°' + ev.unit, date: ev.date, status: A.cls, local_time: A.nowL.hm, timezone: A.tz },
+    observations: A.dayObs.map(o => ({ local: o.L.hm, temp: r1(o.v), metar: o.raw })).slice(-30),
+    last_obs_before_day: A.dayObs.length ? undefined : A.obs.slice(-4).map(o => ({ local: o.L.date + ' ' + o.L.hm, temp: r1(o.v), metar: o.raw })),
+    observed_max_so_far: A.obsMax ?? null,
+    models: Object.values(A.models).map(m => ({
+      model: m.label, bias_obs_minus_model: r1(m.bias), raw_day_max: r1(m.rawMax), adjusted_remaining_max: r1(m.remMax),
+      hourly: m.series.filter((s, k) => s.raw != null && (s.t > now - 3 * 3600e3)).map(s => ({ local: localParts(s.t, A.tz).hm, raw: r1(s.raw), adj: r1(s.adj) }))
+    })),
+    quant_model: A.probs ? { median: A.med, p10: A.p10, p90: A.p90, probabilities: ev.buckets.map((b, i) => ({ bucket: b.label, p: Math.round(A.probs[i] * 1000) / 1000 })) } : null,
+    order_book: ev.buckets.map((b, i) => ({ bucket: b.label, bid: A.px[i].bid, ask: A.px[i].ask, mid: A.px[i].mid })),
+    taf: ev.icao && S.taf[ev.icao] ? S.taf[ev.icao].raw : null,
+    fee_note: 'Taker fee per share ≈ 0.05 × p × (1 − p)',
+    signal_threshold_cents: S.settings.edge,
+    user_note: note || null
+  };
+}
+function sysCity() {
+  return `You are a quantitative analyst for Polymarket daily-high temperature markets. The market resolves on the highest temperature reported by the named station during the local calendar day, in whole degrees of the given unit (unless stated otherwise). Use the METAR observations (temperature, clouds, wind, precipitation), the bias-corrected multi-model hourly forecasts, the quant model and the order book. Reason about the diurnal cycle, time left until the typical peak, cloud/rain/sea-breeze effects and rounding. Return calibrated probabilities for EVERY bucket using the exact bucket labels given; they must sum to 1. A signal requires net edge ≥ the threshold after fees; otherwise NO_TRADE. This is signal-only: never imply automatic execution. If the user asked something, answer it in answer_to_user. Be concise and concrete. Write all text in ${S.settings.lang}.`;
+}
+async function runCityAI(slug) {
+  const ev = S.events.find(e => e.slug === slug); const A = S.A[slug]; if (!ev || !A) return;
+  S.ai[slug] = { loading: true }; renderTable(); if (S.sel === slug) renderAI(ev);
+  try {
+    if (ev.icao && S.settings.proxy && !S.taf[ev.icao]) await loadAviation(ev.icao);
+    S.ai[slug] = await gemini(sysCity(), cityPayload(S.A[slug] || A, S.notes[slug]), CITY_SCHEMA);
+  } catch (e) { S.ai[slug] = { error: e.message }; toast('Gemini: ' + e.message, true); }
+  renderTable(); if (S.sel === slug) { renderLadder(S.A[slug]); renderAI(ev); }
+}
+async function runScan() {
+  const L = listFor(S.tab).filter(e => S.A[e.slug].probs);
+  if (!L.length) { toast('Nothing to scan in this tab yet.'); return; }
+  S.scan = { loading: true, tab: S.tab }; renderScan();
+  const rows = L.map(ev => {
+    const A = S.A[ev.slug];
+    const top = ev.buckets.map((b, i) => ({ bucket: b.label, p: Math.round(A.probs[i] * 1000) / 1000, bid: A.px[i].bid, ask: A.px[i].ask })).sort((a, b) => b.p - a.p).slice(0, 4);
+    return {
+      city: ev.city, date: ev.date, unit: '°' + ev.unit, status: A.status, local_time: A.nowL.hm,
+      now: A.now ? r1(A.now.v) : null, observed_max: A.obsMax ?? null, projected_median: A.med ?? null, p10: A.p10 ?? null, p90: A.p90 ?? null,
+      model_spread: (() => { const v = Object.values(A.models).map(m => m.remMax ?? m.rawMax).filter(x => x != null); return v.length ? r1(Math.max(...v) - Math.min(...v)) : null; })(),
+      top_buckets: top, best_edge: A.best && !A.noSignal ? { bucket: ev.buckets[A.best.i].label, side: A.best.side, net_edge_cents: r1(A.best.edge * 100) } : null,
+      warnings: A.warn
+    };
+  });
+  const sys = `You are a quantitative analyst scanning Polymarket daily-high temperature markets (${S.tab}). Each row has observations, a bias-corrected multi-model quant forecast, top buckets with model probability and bid/ask, and the best net edge. Rank the best 3–8 opportunities by risk-adjusted edge (BUY_YES / BUY_NO), or WATCH if promising but uncertain. Be skeptical of edges driven by thin books, stale observations, or large model spread. Add short warnings where relevant. Signal-only, no execution. Write all text in ${S.settings.lang}.`;
+  try { const R = await gemini(sys, { threshold_cents: S.settings.edge, markets: rows }, SCAN_SCHEMA); S.scan = { ...R, tab: S.tab }; }
+  catch (e) { S.scan = { error: e.message, tab: S.tab }; }
+  renderScan(); renderPills();
+}
+
+/* ============================ orchestration ============================ */
+let booting = false;
+async function fullLoad() {
+  if (booting) return; booting = true;
+  try {
+    await loadMarkets();
+    analyzeAll(); renderAll();
+    await loadObs(true);
+    await loadForecast();
+    analyzeAll(); renderAll();
+    await loadPrices();
+    analyzeAll(); renderAll();
+    if (!S.sel) { const first = listFor(S.tab)[0]; if (first) { S.sel = first.slug; renderAll(); } }
+  } finally { booting = false; }
+}
+async function tick() {
+  renderClock(); renderPills();
+  if (!S.auto || booting) return;
+  const now = Date.now(); let changed = false;
+  if (now - S.last.mkt > CFG.MKT_MS && !S.busy.mkt) { await loadMarkets(); changed = true; }
+  if (now - S.last.obs > CFG.OBS_MS && !S.busy.obs) { await loadObs(false); changed = true; }
+  if (now - S.last.fc > CFG.FC_MS && !S.busy.fc) { await loadForecast(); changed = true; }
+  if (now - S.last.px > CFG.PRICE_MS && !S.busy.px) { await loadPrices(); changed = true; }
+  const ai = +S.settings.aiAuto;
+  if (ai && S.settings.key && (!S.scan || !S.scan.loading) && now - (S.scan && S.scan.t || 0) > ai * 60e3) runScan();
+  if (changed) { analyzeAll(); renderAll(); }
+}
+
+/* ============================ events ============================ */
+function openSettings() {
+  const s = S.settings;
+  $('#sKey').value = s.key; $('#sRemember').checked = !!s.remember; $('#sLang').value = s.lang; $('#sAiAuto').value = String(s.aiAuto);
+  $('#sGround').checked = !!s.grounding; $('#sEdge').value = s.edge; $('#sFees').checked = !!s.fees; $('#sProxy').value = s.proxy;
+  fillModelSelect(); $('#settingsBg').classList.add('on');
+}
+function fillModelSelect() {
+  const sel = $('#sModel'); const list = S.models.length ? S.models : (S.settings.model ? [{ id: S.settings.model, label: S.settings.model }] : []);
+  sel.innerHTML = list.length ? list.map(m => `<option value="${esc(m.id)}" ${m.id === S.settings.model ? 'selected' : ''}>${esc(m.id)}</option>`).join('') : '<option value="">(load models first)</option>';
+}
+function readSettingsForm() {
+  const s = S.settings;
+  s.key = $('#sKey').value.trim(); s.remember = $('#sRemember').checked; s.lang = $('#sLang').value; s.aiAuto = +$('#sAiAuto').value;
+  s.grounding = $('#sGround').checked; s.edge = clamp(parseFloat($('#sEdge').value) || DEFAULTS.edge, 0.5, 50); s.fees = $('#sFees').checked;
+  s.proxy = $('#sProxy').value.trim(); if ($('#sModel').value) s.model = $('#sModel').value;
+}
+document.addEventListener('click', async e => {
+  const t = e.target;
+  const tab = t.closest('[data-tab]'); if (tab) { S.tab = tab.dataset.tab; const L = listFor(S.tab); if (!L.some(x => x.slug === S.sel)) S.sel = L[0] ? L[0].slug : null; renderAll(); return; }
+  const aiB = t.closest('[data-ai]'); if (aiB) { e.stopPropagation(); S.sel = aiB.dataset.ai; renderAll(); runCityAI(aiB.dataset.ai); return; }
+  const tr = t.closest('tr[data-slug]');
+  if (tr) {
+    S.sel = tr.dataset.slug; const ev = S.events.find(x => x.slug === S.sel);
+    if (ev && S.A[ev.slug] && S.A[ev.slug].cls !== S.tab) S.tab = S.A[ev.slug].cls;
+    renderTabs(); renderTable(); renderDetail(true);
+    if (ev && ev.icao && S.settings.proxy) loadAviation(ev.icao).then(() => { analyzeAll(); if (S.sel === ev.slug) renderDetail(false); });
+    if (window.innerWidth <= 1100) $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (t.id === 'btnAiCity' && S.sel) { runCityAI(S.sel); return; }
+  if (t.id === 'btnScan') { runScan(); return; }
+  if (t.id === 'btnCloseScan') { S.scan = null; renderScan(); return; }
+  if (t.id === 'btnRefresh') { S.last = { ...S.last, mkt: 0, obs: 0, fc: 0, px: 0 }; S.stations = {}; await fullLoad(); return; }
+  if (t.id === 'btnTheme') { const r = document.documentElement; const cur = r.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); r.dataset.theme = cur === 'dark' ? 'light' : 'dark'; try { localStorage.setItem('tempRadar.theme', r.dataset.theme); } catch { } if (S.sel) renderDetail(false); return; }
+  if (t.id === 'btnSettings') { openSettings(); return; }
+  if (t.id === 'btnCloseSettings' || t.id === 'settingsBg') { $('#settingsBg').classList.remove('on'); return; }
+  if (t.id === 'btnModels') {
+    readSettingsForm(); t.disabled = true; t.textContent = 'Loading…';
+    try { const list = await listModels(); if (!S.settings.model || !list.some(m => m.id === S.settings.model)) S.settings.model = defaultModel(list); fillModelSelect(); toast(`${list.length} Gemini models available`); S.err.ai = null; S.last.ai = S.last.ai || Date.now(); }
+    catch (err) { toast('Gemini: ' + err.message, true); S.err.ai = err.message; }
+    t.disabled = false; t.textContent = 'Load models'; renderPills(); return;
+  }
+  if (t.id === 'btnSaveSettings') { readSettingsForm(); saveSettings(); $('#settingsBg').classList.remove('on'); analyzeAll(); renderAll(); toast('Settings saved'); return; }
+});
+document.addEventListener('input', e => {
+  if (e.target.id === 'q') { S.q = e.target.value; renderTable(); }
+  if (e.target.id === 'aiNote' && S.sel) S.notes[S.sel] = e.target.value;
+});
+document.addEventListener('change', e => {
+  if (e.target.id === 'onlySig') { S.onlySig = e.target.checked; renderTable(); }
+  if (e.target.id === 'sort') { S.sort = e.target.value; renderTable(); }
+  if (e.target.id === 'auto') { S.auto = e.target.checked; }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('#settingsBg').classList.remove('on'); });
+
+/* ============================ boot ============================ */
+loadSettings();
+renderClock(); renderPills(); renderTabs(); renderTable();
+fullLoad().then(() => { if (!S.settings.key) toast('Tip: add your Google AI Studio key in Settings to enable Gemini analysis.'); });
+setInterval(tick, 15000);
+setInterval(renderClock, 30000);
+let rsz; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(() => { const A = S.sel && S.A[S.sel]; if (A && $('#d-chart')) renderChart(A); }, 150); });
+</script>
+</body>
+</html>
